@@ -1,24 +1,54 @@
 import socket
+import os
 
 #Allocate a new socket
 
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-#Connect to google.ca
+# Listen on port 8000
 
-client.connect(('www.google.ca',80))
+server.bind(('0.0.0.0',8000))
+server.listen(1)
 
-http = "GET / HTTP/1.0\r\n\r\n"
-
-client.sendall(http)
-
-msg = ""
 while True:
-    part = client.recv(1024)
-    if part:
-        msg += part 
-    else:
-        break
+	print "Waiting for connections..."
+    	client, address = server.accept()
+    	print "Connected!"
+    	print address
+    	pid = os.fork()
 
-print msg
+	if (pid == 0): #We are in the child process
+		#client is going to be curl or web browser or something like that
+		outgoing = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		outgoing.connect(("www.google.ca", 80))
+		outgoing.setblocking(0)
+		client.setblocking(0)
+		while True:
+		    try:
+		       	part = client.recv(1024)
+		    except socket.error, exception:
+		        if exception.errno == 11:
+		            part = None
+		        else:
+		            raise
+		        
+		    if (part is not None and len(part) == 0):
+		        exit(0)
+		    if (part):
+		        print "< " + part
+		        outgoing.sendall(part)
+		    try:
+		        part = outgoing.recv(1024)
+		    except socket.error, exception:
 
+		        if exception.errno == 11:
+		            part = None
+		        else:
+		            raise
+		        
+		if (part is not None and len(part) == 0):
+		    exit(0)
+		    if (part):
+		        print "> " + part
+		        client.sendall(part)
